@@ -404,7 +404,7 @@ void UActorIOSubsystemBase::ProcessMessage(const FActorIOMessage& InMessage)
     // In most cases this will be the target actor itself.
     // However, the I/O function may want it to be executed on a subobject of the actor instead.
     UObject* TargetObject = ActorPtr;
-    if (!TargetFunction->TargetSubobject.IsNone())
+    if (!TargetFunction->TargetSubobject.IsNone() && ActorPtr->GetFName() != TargetFunction->TargetSubobject)
     {
     	TargetObject = StaticFindObjectFastSafe(UObject::StaticClass(), ActorPtr, TargetFunction->TargetSubobject);
         if (!TargetObject)
