@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
+// Copyright 2024-2026 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
 
 #pragma once
 
@@ -393,7 +393,7 @@ struct ACTORIO_API FActorIOFunctionList
 /**
  * Context of an I/O action that the reflection system is about to execute.
  * Stores the original memory of the execute action call in case it is needed for named arguments.
- * Only valid between the action receiving the ProcessEvent call and sending the command to the target actor.
+ * Only valid between the action receiving the ProcessEvent call and dispatching the I/O message.
  * Use FActionExecutionContext::Get() to get the current context.
  */
 USTRUCT()
@@ -401,7 +401,7 @@ struct ACTORIO_API FActionExecutionContext
 {
 	GENERATED_BODY()
 
-	/** Reference to the action that is about to be executed. */
+	/** Reference to the action that is being executed. */
 	UPROPERTY()
 	TObjectPtr<UActorIOAction> ActionPtr;
 
@@ -428,12 +428,16 @@ struct ACTORIO_API FActionExecutionContext
 	 */
 	bool bAborted;
 
+	/** Result of ProcessAction() on the I/O action. */
+	bool bProcessResult;
+
 	/** Default constructor. */
 	FActionExecutionContext() :
 		ActionPtr(nullptr),
 		ScriptParams(nullptr),
 		NamedArguments(TMap<FString, FString>()),
-		bAborted(false)
+		bAborted(false),
+		bProcessResult(false)
 	{}
 
 	/** Get the current global execution context. */
@@ -445,7 +449,7 @@ struct ACTORIO_API FActionExecutionContext
 	/** Leave the current execution context. */
 	void ExitContext();
 
-	/** @return Whether we are currently have an execution context. */
+	/** @return Whether we have a valid execution context. */
 	bool HasContext() const;
 
 	/**
@@ -460,9 +464,65 @@ struct ACTORIO_API FActionExecutionContext
 	 * Intended to be used from an I/O event processor.
 	 */
 	void AbortAction();
+};
 
-	/** Log an execution failure message to the console and game screen. */
-	static void ExecutionError(bool bCondition, ELogVerbosity::Type InVerbosity, const FString& InMessage);
+/**
+ * A message is a pending execution request created by an I/O action.
+ * Delivered and executed by the I/O subsystem.
+ */
+USTRUCT()
+struct ACTORIO_API FActorIOMessage
+{
+	GENERATED_BODY()
+
+	/** The action that is sending the message. */
+	TSoftObjectPtr<UActorIOAction> SenderPtr;
+
+	/** Actor to execute the message on. */
+	TSoftObjectPtr<AActor> TargetPtr;
+
+	/** Id of the I/O function to execute on the target. */
+	FName FunctionId;
+
+	/** Parameters to send to the function in UnrealScript format. */
+	FString Arguments;
+
+	/** Possible I/O message flags. */
+	enum class EMessageFlags : uint8
+	{
+		/** No flags. */
+		None = 0x00,
+
+		// Intentionally leaving 4 bit room here for future use.
+
+		/** Awaiting the sender's level activate. */
+		SenderIsPending = 0x10,
+
+		/** Awaiting the target's level to activate. */
+		TargetIsPending = 0x20,
+	};
+
+	/** Additional runtime message data. */
+	uint8 MessageFlags;
+
+	/**
+	 * Time in seconds before the command is executed.
+	 * Ticked down every frame by the I/O subsystem.
+	 */
+	float TimeRemaining;
+
+	/** Default constructor. */
+	FActorIOMessage() :
+		SenderPtr(nullptr),
+		TargetPtr(nullptr),
+		FunctionId(NAME_None),
+		Arguments(FString()),
+		MessageFlags(0x00),
+		TimeRemaining(0.0f)
+	{}
+
+	/** Serialize to structured archive. */
+	void SerializeMessage(FStructuredArchive::FRecord Record);
 };
 
 /**
@@ -495,6 +555,9 @@ public:
 
 	/** Perform basic checks to see if the given arguments can be imported into the function as parameters. */
 	static bool ValidateFunctionArguments(UFunction* FunctionPtr, const FString& InArguments, FText& OutError);
+
+	/** Log an execution failure message to the console and game screen. */
+	static void ExecutionError(bool bCondition, ELogVerbosity::Type InVerbosity, const FString& InMessage);
 };
 
 /** [Console Variable] Whether to log I/O action execution messages. */

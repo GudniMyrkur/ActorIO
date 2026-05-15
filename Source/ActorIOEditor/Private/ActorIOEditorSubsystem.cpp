@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
+// Copyright 2024-2026 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
 
 #include "ActorIOEditorSubsystem.h"
 #include "ActorIOEditor.h"
@@ -22,7 +22,7 @@ void UActorIOEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	DelegateHandle_SelectionChanged = USelection::SelectionChangedEvent.AddUObject(this, &ThisClass::OnObjectSelectionChanged);
 	DelegateHandle_DeleteActorsBegin = FEditorDelegates::OnDeleteActorsBegin.AddUObject(this, &ThisClass::OnDeleteOrCutActorsBegin);
 	DelegateHandle_CutActorsBegin = FEditorDelegates::OnEditCutActorsBegin.AddUObject(this, &ThisClass::OnDeleteOrCutActorsBegin);
-#if UE_VERSION_NEWER_THAN(5, 5, 0)
+#if UE_VERSION_NEWER_THAN(5, 4, ENGINE_PATCH_VERSION)
 	DelegateHandle_ActorReplaced = FEditorDelegates::OnEditorActorReplaced.AddUObject(this, &ThisClass::OnActorReplaced);
 #endif
 
@@ -34,7 +34,7 @@ void UActorIOEditorSubsystem::Deinitialize()
 	USelection::SelectionChangedEvent.Remove(DelegateHandle_SelectionChanged);
 	FEditorDelegates::OnDeleteActorsBegin.Remove(DelegateHandle_DeleteActorsBegin);
 	FEditorDelegates::OnEditCutActorsBegin.Remove(DelegateHandle_CutActorsBegin);
-#if UE_VERSION_NEWER_THAN(5, 5, 0)
+#if UE_VERSION_NEWER_THAN(5, 4, ENGINE_PATCH_VERSION)
 	FEditorDelegates::OnEditorActorReplaced.Remove(DelegateHandle_ActorReplaced);
 #endif
 

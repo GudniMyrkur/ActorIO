@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
+// Copyright 2024-2026 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
 
 #include "LogicActors/LogicActorBase.h"
 #include "Engine/Level.h"
@@ -13,7 +13,7 @@ ALogicActorBase::ALogicActorBase()
 	bReplicates = false;
 	bNetLoadOnClient = true;
 
-#if UE_VERSION_NEWER_THAN(5, 5, 0)
+#if UE_VERSION_NEWER_THAN(5, 4, ENGINE_PATCH_VERSION)
 	SetNetUpdateFrequency(10.0f);
 #else
 	NetUpdateFrequency = 10.0f;
@@ -53,4 +53,23 @@ ALogicActorBase::ALogicActorBase()
 	bEnableAutoLODGeneration = false;
 	SetReplicatingMovement(false);
 	SetCanBeDamaged(false);
+}
+
+void ALogicActorBase::Serialize(FArchive& Ar)
+{
+	PreSerializeLogicActor(Ar);
+
+	Super::Serialize(Ar);
+
+	PostSerializeLogicActor(Ar);
+}
+
+void ALogicActorBase::Serialize(FStructuredArchive::FRecord Record)
+{
+	FArchive& UnderlyingArchive = Record.GetUnderlyingArchive();
+	PreSerializeLogicActor(UnderlyingArchive);
+
+	Super::Serialize(Record);
+
+	PostSerializeLogicActor(UnderlyingArchive);
 }

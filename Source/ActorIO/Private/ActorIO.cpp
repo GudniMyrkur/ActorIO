@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
+// Copyright 2024-2026 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
 
 #include "ActorIO.h"
 #include "ActorIOComponent.h"
@@ -40,7 +40,7 @@ TAutoConsoleVariable<bool> CVarLogIOActionFinalCommand(
 FActionExecutionContext& FActionExecutionContext::Get(UObject* WorldContextObject)
 {
     UActorIOSubsystemBase* IOSubsystem = UActorIOSubsystemBase::Get(WorldContextObject);
-    return IOSubsystem->ActionExecContext;
+    return IOSubsystem->GetExecutionContext();
 }
 
 void FActionExecutionContext::EnterContext(UActorIOAction* InAction, void* InScriptParams)
@@ -48,6 +48,9 @@ void FActionExecutionContext::EnterContext(UActorIOAction* InAction, void* InScr
     check(!HasContext());
     ActionPtr = InAction;
     ScriptParams = InScriptParams;
+    NamedArguments.Reset();
+    bAborted = false;
+    bProcessResult = false;
 }
 
 void FActionExecutionContext::ExitContext()
@@ -55,7 +58,6 @@ void FActionExecutionContext::ExitContext()
     check(HasContext());
     ActionPtr = nullptr;
     ScriptParams = nullptr;
-    NamedArguments.Reset();
 }
 
 bool FActionExecutionContext::HasContext() const
@@ -100,29 +102,38 @@ void FActionExecutionContext::AbortAction()
     }
 }
 
-void FActionExecutionContext::ExecutionError(bool bCondition, ELogVerbosity::Type InVerbosity, const FString& InMessage)
-{
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING // Do not Print in Shipping or Test unless explicitly enabled.
-    check(InVerbosity == ELogVerbosity::Warning || InVerbosity == ELogVerbosity::Error); // Only warnings and errors.
-    if (bCondition)
-    {
-        if (InVerbosity == ELogVerbosity::Warning)
-        {
-            UE_LOG(LogActorIO, Warning, TEXT("%s"), *InMessage);
-        }
-        else
-        {
-            UE_LOG(LogActorIO, Error, TEXT("%s"), *InMessage);
-        }
+//==================================
+//~ Begin FActorIOMessage
+//==================================
 
-        if (GEngine && GAreScreenMessagesEnabled)
-        {
-            const float DisplayTime = 3.0f;
-            const FColor DisplayColor = InVerbosity == ELogVerbosity::Warning ? FColor::Yellow : FColor::Red;
-            GEngine->AddOnScreenDebugMessage(INDEX_NONE, DisplayTime, DisplayColor, InMessage);
-        }
+void FActorIOMessage::SerializeMessage(FStructuredArchive::FRecord Record)
+{
+    FArchive& UnderlyingArchive = Record.GetUnderlyingArchive();
+
+    FSoftObjectPath SenderPath;
+    FSoftObjectPath TargetPath;
+
+    if (UnderlyingArchive.IsSaving())
+    {
+        SenderPath = SenderPtr.ToSoftObjectPath();
+        SenderPath.SetPath(UWorld::RemovePIEPrefix(SenderPath.ToString()));
+
+        TargetPath = TargetPtr.ToSoftObjectPath();
+        TargetPath.SetPath(UWorld::RemovePIEPrefix(TargetPath.ToString()));
     }
-#endif
+
+    Record << SA_VALUE(TEXT("Sender"), SenderPath);
+    Record << SA_VALUE(TEXT("Target"), TargetPath);
+    Record << SA_VALUE(TEXT("FunctionId"), FunctionId);
+    Record << SA_VALUE(TEXT("Arguments"), Arguments);
+    Record << SA_VALUE(TEXT("MessageFlags"), MessageFlags);
+    Record << SA_VALUE(TEXT("TimeRemaining"), TimeRemaining);
+
+    if (UnderlyingArchive.IsLoading())
+    {
+        SenderPtr = SenderPath;
+        TargetPtr = TargetPath;
+    }
 }
 
 //==================================
@@ -205,8 +216,7 @@ const TArray<TWeakObjectPtr<UActorIOAction>> IActorIO::GetInputActionsForObject(
             UActorIOAction* Action = *ActionItr;
             if (IsValid(Action) && IsValid(Action->GetOwnerActor()))
             {
-                // According to TObjectIterator description, we need to make sure that we
-                // don't include objects from different worlds (e.g. PIE sessions).
+                // Make sure that we don't include objects from different worlds (e.g. other PIE sessions).
                 if (Action->GetWorld() == InObject->GetWorld())
                 {
                     if (Action->TargetActor.Get() == InObject)
@@ -348,4 +358,29 @@ bool IActorIO::ValidateFunctionArguments(UFunction* FunctionPtr, const FString& 
     }
 
     return true;
+}
+
+void IActorIO::ExecutionError(bool bCondition, ELogVerbosity::Type InVerbosity, const FString& InMessage)
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING // Do not Print in Shipping or Test unless explicitly enabled.
+    check(InVerbosity == ELogVerbosity::Warning || InVerbosity == ELogVerbosity::Error); // Only warnings and errors.
+    if (bCondition)
+    {
+        if (InVerbosity == ELogVerbosity::Warning)
+        {
+            UE_LOG(LogActorIO, Warning, TEXT("%s"), *InMessage);
+        }
+        else
+        {
+            UE_LOG(LogActorIO, Error, TEXT("%s"), *InMessage);
+        }
+
+        if (GEngine && GAreScreenMessagesEnabled)
+        {
+            const float DisplayTime = 3.0f;
+            const FColor DisplayColor = InVerbosity == ELogVerbosity::Warning ? FColor::Yellow : FColor::Red;
+            GEngine->AddOnScreenDebugMessage(INDEX_NONE, DisplayTime, DisplayColor, InMessage);
+        }
+    }
+#endif
 }

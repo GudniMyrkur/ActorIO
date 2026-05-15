@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
+// Copyright 2024-2026 Horizon Games and all contributors at https://github.com/HorizonGamesRoland/ActorIO/graphs/contributors
 
 #pragma once
 
@@ -59,7 +59,6 @@ public:
 protected:
 
 	/** Whether the action was executed before. */
-	UPROPERTY()
 	bool bWasExecuted;
 
 	/** Whether the action is bound to the assigned I/O event. */
@@ -84,6 +83,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Action")
 	AActor* GetOwnerActor() const;
 
+	/** Get whether the action was executed before. */
+	UFUNCTION(BlueprintPure, Category = "Action")
+	bool GetWasExecuted() const { return bWasExecuted; }
+
 	/** Check if the selected target actor is valid and loaded. */
 	UFUNCTION(BlueprintPure, Category = "Action")
 	bool IsTargetActorAlive() const;
@@ -106,35 +109,35 @@ public:
 	 */
 	UFunction* ResolveUFunction(const FActorIOFunction* TargetFunction = nullptr, UObject* TargetObject = nullptr) const;
 
+	/** @return Whether the action should be serialized when saving game data. */
+	bool ShouldSerializeToArchive(FArchive& Ar) const;
+
 protected:
 
 	/**
-	 * Name of the function that is bound to the assigned I/O event.
-	 * This function will be used as a notify so that we can keep track of the global action execution state.
-	 * By default this is assigned to the "ReceiveExecuteAction" function below.
+	 * Name of the UFunction to bind to I/O events.
+	 * By default this is assigned to the "ExecuteAction" function below.
 	 */
-	static FName ExecuteActionSignalName;
+	static FName NAME_ExecuteAction;
 
 	/**
-	 * Entry point when the assigned I/O event is triggered.
-	 * This function does not do anything on its own.
-	 * It is simply used as a notify so that we can keep track of the global action execution state.
+	 * Called before the action is executed by UnrealScript.
+	 * @see UActorIOAction::ProcessEvent
+	 */
+	bool ProcessAction(FActionExecutionContext& ExecutionContext);
+
+	/**
+	 * Executes the action by finalizing the processed data and dispatching the I/O message.
+	 * By the time this function is called, the action has already been processed.
+	 * @see UActorIOAction::ProcessAction
 	 */
 	UFUNCTION()
-	void ReceiveExecuteAction();
-
-	/** Executes the action. */
-	void ExecuteAction(FActionExecutionContext& ExecutionContext);
-
-	/**
-	 * Sends the final command to the target actor.
-	 * The command contains the function name and parameters that will be processed by Unreal Script.
-	 */
-	void SendCommand(UObject* Target, FString Command);
+	void ExecuteAction();
 
 public:
 
 	//~ Begin UObject Interface
 	virtual void ProcessEvent(UFunction* Function, void* Parms) override;
+	virtual void Serialize(FStructuredArchive::FRecord Record);
 	//~ End UObject Interface
 };
