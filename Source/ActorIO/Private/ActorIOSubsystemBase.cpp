@@ -406,11 +406,16 @@ void UActorIOSubsystemBase::ProcessMessage(const FActorIOMessage& InMessage)
     UObject* TargetObject = ActorPtr;
     if (!TargetFunction->TargetSubobject.IsNone())
     {
-        TargetObject = ActorPtr->GetDefaultSubobjectByName(TargetFunction->TargetSubobject);
+    	TargetObject = StaticFindObjectFastSafe(UObject::StaticClass(), ActorPtr, TargetFunction->TargetSubobject);
         if (!TargetObject)
         {
-            IActorIO::ExecutionError(DebugIOActions, ELogVerbosity::Error, FString::Printf(TEXT("I/O function '%s' target subobject '%s' not found on actor '%s'."), *InMessage.FunctionId.ToString(), *TargetFunction->TargetSubobject.ToString(), *ActorPtr->GetActorNameOrLabel()));
-            return;
+        	// Fallback to GetDefaultSubobjectByName
+        	TargetObject = ActorPtr->GetDefaultSubobjectByName(TargetFunction->TargetSubobject);
+        	if (!TargetObject)
+        	{
+        		IActorIO::ExecutionError(DebugIOActions, ELogVerbosity::Error, FString::Printf(TEXT("I/O function '%s' target subobject '%s' not found on actor '%s'."), *InMessage.FunctionId.ToString(), *TargetFunction->TargetSubobject.ToString(), *ActorPtr->GetActorNameOrLabel()));
+        		return;
+        	}
         }
     }
 
