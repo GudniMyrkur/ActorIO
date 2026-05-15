@@ -242,6 +242,14 @@ struct ACTORIO_API FActorIOFunction
 	 * Can be used to avoid duplicating functions from components since the I/O system only communicates between actors.
 	 */
 	FName TargetSubobject;
+	
+	
+	/// Pointer to the UFunction to execute.
+	TWeakObjectPtr<const UFunction> FunctionPtr;
+	
+	/// Pointer to the actor component to execute the function on (if applicable).
+	TWeakObjectPtr<const UClass> OwnerClassPtr;
+
 
 	/** Default constructor. */
 	FActorIOFunction() :
@@ -283,6 +291,26 @@ struct ACTORIO_API FActorIOFunction
 	FActorIOFunction& SetFunction(const FString& InFunctionName)
 	{
 		FunctionToExec = InFunctionName;
+		return *this;
+	}
+	
+	/**
+	 * Set the function pointer to execute.
+	 * The function must be marked as UFUNCTION in C++.
+	 */
+	FActorIOFunction& SetFunctionPtr(const UFunction* InFunction)
+	{
+		FunctionPtr = InFunction;
+		return *this;
+	}
+	
+	/**
+	 * Set the owner class pointer of the function to execute.
+	 * The function must be marked as UFUNCTION in C++.
+	 */
+	FActorIOFunction& SetOwnerClassPtr(const UClass* InOwnerClass)
+	{
+		OwnerClassPtr = InOwnerClass;
 		return *this;
 	}
 

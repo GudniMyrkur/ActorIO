@@ -35,6 +35,57 @@ public:
 	 */
 	UPROPERTY(Config, NoClear, EditAnywhere, Category = "Settings", DisplayName = "Actor I/O Subsystem Class")
 	TSubclassOf<class UActorIOSubsystemBase> ActorIOSubsystemClass;
+	
+	UPROPERTY(Config, EditAnywhere, Category = "Settings", DisplayName = "Actor I/O Blacklist")
+	TSet<FName> BlackListedNames = {
+		"AddComponent",
+		"AddComponentByClass",
+		"ConditionalAbortIOAction",
+		"K2_GetLocalNamedArguments",
+		"K2_RegisterIOEvents",
+		"K2_RegisterIOFunctions",
+		"ToggleActive",
+		"SetTickGroup",
+		"SetTickableWhenPaused",
+		"SetIsReplicated",
+		"SetComponentTickIntervalAndCooldown",
+		"SetComponentTickInterval",
+		"SetAutoActivate",
+		"SetActive",
+		"RemoveTickPrerequisiteComponent",
+		"RemoveTickPrerequisiteActor",
+		"IsComponentTickEnabled",
+		"IsBeingDestroyed",
+		"IsActive",
+		"GetOwner",
+		"GetComponentTickInterval",
+		"Deactivate",
+		"ComponentHasTag",
+		"AddTickPrerequisiteComponent",
+		"AddTickPrerequisiteActor",
+		"Activate",
+		"ActorHasTag",
+		"CanTriggerResimulation",
+		"CreateInputComponent",
+		"DetachRootComponentFromParent",
+		"FinishAddComponent",
+		"FlushNetDormancy",
+		"ForceNetUpdate",
+		"HasAuthority",
+		"PrestreamTextures",
+		"RegisterAsFocalPointInPhysicsReplicationLOD",
+		"SetAutoDestroyWhenFinished",
+		"SetFolderPath",
+		"SetIsTemporarilyHiddenInEditor",
+		"SetMinNetUpdateFrequency",
+		"SetNetCullDistanceSquared",
+		"SetNetDormancy",
+		"SetNetUpdateFrequency",
+		"OnInputTouchBegin",
+		"OnInputTouchEnd",
+		"OnInputTouchEnter",
+		"OnInputTouchLeave",
+	};
 
 public:
 

@@ -125,6 +125,20 @@ void SActorIOEditor::Construct(const FArguments& InArgs)
                 [
                     SNew(SSpacer)
                 ]
+                
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                [
+                    SNew(SCheckBox)
+                    .IsChecked(this, &SActorIOEditor::IsDebugButtonChecked)
+                    .OnCheckStateChanged(this, &SActorIOEditor::OnDebugButtonChecked)
+                    [
+                        SNew(STextBlock)
+                        .Text(LOCTEXT("DebugDrawConnections", "Debug Draw All Connections"))
+                        .Visibility(EVisibility::HitTestInvisible)
+                    ]
+                ]
+                
                 + SVerticalBox::Slot()
                 .AutoHeight()
                 [
@@ -217,6 +231,12 @@ ECheckBoxState SActorIOEditor::IsInputsButtonChecked() const
     return bViewInputActions ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
+ECheckBoxState SActorIOEditor::IsDebugButtonChecked() const
+{
+    UActorIOEditorSubsystem* ActorIOEditorSubsystem = UActorIOEditorSubsystem::Get();
+    return ActorIOEditorSubsystem->bDebugDrawAllActorIOConnections ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
 void SActorIOEditor::OnInputsButtonChecked(ECheckBoxState InState)
 {
     if (InState == ECheckBoxState::Checked && !bViewInputActions)
@@ -225,6 +245,13 @@ void SActorIOEditor::OnInputsButtonChecked(ECheckBoxState InState)
         bActionListNeedsRegenerate = true;
         RequestRefresh();
     }
+}
+
+void SActorIOEditor::OnDebugButtonChecked(ECheckBoxState InState)
+{
+    UActorIOEditorSubsystem* ActorIOEditorSubsystem = UActorIOEditorSubsystem::Get();
+    ActorIOEditorSubsystem->bDebugDrawAllActorIOConnections = (InState == ECheckBoxState::Checked);
+    RequestRefresh();
 }
 
 FReply SActorIOEditor::OnClick_NewAction()

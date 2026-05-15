@@ -30,6 +30,7 @@ public class ActorIOEditor : ModuleRules
             "PlacementMode",
             "WorkspaceMenuStructure",
             "ToolWidgets",
+            "GraphEditor"
         });
     }
 }

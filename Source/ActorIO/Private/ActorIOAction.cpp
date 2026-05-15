@@ -502,7 +502,14 @@ UObject* UActorIOAction::ResolveTargetObject(const FActorIOFunction* TargetFunct
 		// Check if the I/O function wants to be executed on a subobject instead of the target actor.
 		if (TargetFunction && !TargetFunction->TargetSubobject.IsNone())
 		{
-			OutTarget = TargetActorPtr->GetDefaultSubobjectByName(TargetFunction->TargetSubobject);
+			for (auto Component : TargetActorPtr->GetComponents())
+			{
+				if (Component->GetName() == TargetFunction->TargetSubobject)
+				{
+					OutTarget = Component;
+					break;
+				}
+			}
 		}
 	}
 

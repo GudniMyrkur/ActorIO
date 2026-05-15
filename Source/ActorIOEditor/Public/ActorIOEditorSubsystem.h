@@ -14,7 +14,7 @@ class UActorIOComponent;
  * Editor subsystem for integrating the level editor, and other editor features with the Actor I/O plugin.
  */
 UCLASS()
-class ACTORIOEDITOR_API UActorIOEditorSubsystem : public UEditorSubsystem
+class ACTORIOEDITOR_API UActorIOEditorSubsystem : public UEditorSubsystem, public FTickableEditorObject
 {
 	GENERATED_BODY()
 	
@@ -28,6 +28,11 @@ public:
 
 	/** Add an actor I/O component to the given actor. */
 	UActorIOComponent* AddIOComponentToActor(AActor* TargetActor, bool bSelectActor);
+	
+	// FTickableEditorObject interface.
+	virtual void Tick(float DeltaTime) override;
+	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
+	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(FActorIOEditorSubsystem, STATGROUP_Tickables); }
 
 private:
 
@@ -65,4 +70,6 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	//~ End UEditorSubsystem Interface
+	
+	bool bDebugDrawAllActorIOConnections = false;
 };

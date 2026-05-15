@@ -94,9 +94,14 @@ protected:
 
     /** @return True if the view inputs button should be toggled. */
     ECheckBoxState IsInputsButtonChecked() const;
+    
+    /** @return True debug data should be drawn for all components in the world. */
+    ECheckBoxState IsDebugButtonChecked() const;
 
     /** Called when the view inputs button is toggled. */
     void OnInputsButtonChecked(ECheckBoxState InState);
+    
+    void OnDebugButtonChecked(ECheckBoxState InState);
 
     /** Called when the new action button is clicked. */
     FReply OnClick_NewAction();

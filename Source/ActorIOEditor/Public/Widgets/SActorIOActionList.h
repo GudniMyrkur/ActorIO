@@ -6,6 +6,7 @@
 #include "ActorIOAction.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
+#include "SGraphActionMenu.h"
 
 class SActorIOEditor;
 
@@ -138,6 +139,42 @@ public:
 
 protected:
 
+    // BEGIN FUNCTIONMENU
+    /** Combo button for function selection, used to close the menu. */
+    TSharedPtr<class SComboButton> FunctionComboButton;
+    
+    void OnSelectActorClicked() const;
+    
+    /** Called to generate the menu content for the function combo button. */
+    TSharedRef<SWidget> OnGetFunctionMenuContent();
+
+    /** Called by SGraphActionMenu to populate the list of actions. */
+    TSharedRef<FGraphActionListBuilderBase> OnGetFunctionActionList();
+
+    /** Called when a function is chosen from the graph action menu. */
+    void OnGraphFunctionActionSelected(const TArray<TSharedPtr<struct FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectType);
+    // END FUNCTIONMENU
+    
+    
+    // BEGIN EVENTMENU
+    /** Combo button for event selection, used to close the menu. */
+    TSharedPtr<class SComboButton> EventComboButton;
+    
+    /** Called to generate the menu content for the event combo button. */
+    TSharedRef<SWidget> OnGetEventMenuContent();
+
+    /** Called by SGraphActionMenu to populate the list of actions. */
+    TSharedRef<FGraphActionListBuilderBase> OnGetEventActionList();
+    
+    /** Called when creating a widget for an event action in the event menu. */
+    TSharedRef<SWidget> OnCreateWidgetForAction(FCreateWidgetForActionData* CreateWidgetForActionData);
+    
+
+    /** Called when a event is chosen from the graph action menu. */
+    void OnGraphEventActionSelected(const TArray<TSharedPtr<struct FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectType);
+    // END EVENTMENU
+    
+
     /** The I/O action that this widget represents. */
     TWeakObjectPtr<UActorIOAction> ActionPtr;
 
@@ -268,6 +305,11 @@ protected:
 
     /** Finds the display name of the given I/O event. */
     FText GetEventDisplayName(FName InEventId) const;
+    
+    /* Is this event implemented in this class, or is it just inherited? */
+    bool IsEventImplementedInClass(FName InEventId) const;
+    /* Is this function implemented in this class, or is it just inherited? */
+    bool IsFunctionImplementedInClass(FName InFunctionId) const;
 
     /** @return Color based on whether the given I/O event is valid or not. */
     FSlateColor GetEventDisplayColor(FName InEventId) const;
@@ -343,4 +385,23 @@ private:
 
     /** Function to call whenever we iterate over a widget. */
     TWidgetIterationFunc IterationFunc;
+};
+
+
+/**
+ * A custom graph action for the function picker.
+ * This allows us to store the FunctionId FName as custom data.
+ */
+struct FActorIOFunctionGraphAction : public FEdGraphSchemaAction
+{
+    // Inherit the base class constructor
+    FActorIOFunctionGraphAction(const FText& InNodeCategory, const FText& InMenuDesc, const FText& InToolTip, int32 InGrouping)
+        : FEdGraphSchemaAction(InNodeCategory, InMenuDesc, InToolTip, InGrouping)
+    {}
+
+    /** The unique ID of the function this action represents. */
+    FName Id = NAME_None;
+    
+    /** Should this action be displayed as important (bold text) in the action menu? */
+    bool bIsImportant = false;
 };

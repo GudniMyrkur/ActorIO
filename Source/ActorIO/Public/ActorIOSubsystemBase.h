@@ -89,8 +89,15 @@ public:
 	 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Actor IO", DisplayName = "Get Global Named Arguments", meta = (ForceAsFunction, Keywords = "IO"))
 	void K2_GetGlobalNamedArguments();
+	
+	TArray<FActorIOEvent> FindEventsForObject(UObject* Object);
+	TArray<FActorIOFunction> FindFunctionsForObject(UObject* Object);
+	void GetIdAndDisplayName(FString& OutId, FString& OutDisplayName, UObject* Object);
+	
+	bool IsBlacklistedName(FString Name);
 
 private:
+	TArray<FName> BlacklistedFunctions;
 
 	/** Event processor for the 'OnActorBeginOverlap' and 'OnActorEndOverlap' events. */
 	UFUNCTION()
@@ -104,5 +111,6 @@ public:
 
 	//~ Begin UWorldSubsystem Interface
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override final;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	//~ End UWorldSubsystem Interface
 };

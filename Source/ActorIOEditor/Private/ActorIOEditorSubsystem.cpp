@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Selection.h"
 #include "Editor.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/EngineVersionComparison.h"
 
 UActorIOEditorSubsystem* UActorIOEditorSubsystem::Get()
@@ -66,6 +67,43 @@ UActorIOComponent* UActorIOEditorSubsystem::AddIOComponentToActor(AActor* Target
 	}
 
 	return NewComponent;
+}
+
+void UActorIOEditorSubsystem::Tick(float DeltaTime)
+{
+	if (bDebugDrawAllActorIOConnections)
+	{
+		for (TObjectIterator<UActorIOComponent> It; It; ++It)
+		{
+			for (const TObjectPtr<UActorIOAction>& OutputAction : It->GetActions())
+			{
+				if (OutputAction)
+				{
+					const AActor* TargetActorPtr = OutputAction->TargetActor.Get();
+					if (IsValid(TargetActorPtr))
+					{
+						const FVector Start = It->GetOwner()->GetActorLocation();
+						const FVector End = TargetActorPtr->GetActorLocation();
+						DrawDebugLine(GEditor->GetEditorWorldContext().World(), Start, End, FColor(150, 255, 80), false, -1, 0, 2.f);
+					}
+				}
+			}
+
+			for (const TWeakObjectPtr<UActorIOAction>& InputAction : IActorIO::GetInputActionsForObject(It->GetOwner()))
+			{
+				if (InputAction.IsValid())
+				{
+					const AActor* ActionOwner = InputAction->GetOwnerActor();
+					if (IsValid(ActionOwner))
+					{
+						const FVector Start = It->GetOwner()->GetActorLocation();
+						const FVector End = ActionOwner->GetActorLocation();
+						DrawDebugLine(GEditor->GetEditorWorldContext().World(), Start, End, FColor(255, 200, 80), false, -1, 0, 2.f);
+					}
+				}
+			}
+		}
+	}
 }
 
 void UActorIOEditorSubsystem::OnObjectSelectionChanged(UObject* NewSelection)

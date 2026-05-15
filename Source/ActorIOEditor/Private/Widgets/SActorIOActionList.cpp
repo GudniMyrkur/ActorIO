@@ -9,6 +9,7 @@
 #include "ActorIOEditor.h"
 #include "ActorIOEditorSubsystem.h"
 #include "ActorIOEditorStyle.h"
+#include "ActorIOEditorTools.h"
 #include "GameFramework/Actor.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Input/SButton.h"
@@ -17,13 +18,18 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultilineEditableTextBox.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SComboButton.h" 
+#include "SGraphActionMenu.h"
+#include "EdGraph/EdGraphSchema.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Editor.h"
 #include "ScopedTransaction.h"
+#include "SGraphPalette.h"
 #include "Misc/Optional.h"
 #include "SlateOptMacros.h"
+#include "Engine/StaticMeshActor.h"
 
 #define LOCTEXT_NAMESPACE "ActorIOEditor"
 
@@ -352,11 +358,9 @@ TSharedRef<SWidget> SActorIOActionListViewRow::GenerateWidgetForColumn(const FNa
 				.WidgetIndex(bIsInputAction ? 1 : 0)
 				+ SWidgetSwitcher::Slot()
 				[
-					SNew(SComboBox<FName>)
-					.OptionsSource(&SelectableEventIds)
-					.OnGenerateWidget(this, &SActorIOActionListViewRow::OnGenerateEventComboBoxWidget)
-					.OnComboBoxOpening(this, &SActorIOActionListViewRow::OnEventComboBoxOpening)
-					.OnSelectionChanged(this, &SActorIOActionListViewRow::OnEventComboBoxSelectionChanged)
+					SAssignNew(EventComboButton, SComboButton)
+					.OnGetMenuContent(this, &SActorIOActionListViewRow::OnGetEventMenuContent)
+					.ButtonContent()
 					[
 						SAssignNew(EventText, STextBlock)
 						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont")) // PropertyEditorConstants::PropertyFontStyle
@@ -393,7 +397,8 @@ TSharedRef<SWidget> SActorIOActionListViewRow::GenerateWidgetForColumn(const FNa
 			.AllowedClass(AActor::StaticClass())
 			.AllowClear(true)
 			.EnableContentPicker(true)
-			.DisplayBrowse(false)
+			.DisplayBrowse(true)
+			.OnBrowseOverride(this, &SActorIOActionListViewRow::OnSelectActorClicked)
 			.DisplayUseSelected(false)
 			.ObjectPath(this, &SActorIOActionListViewRow::OnGetTargetActorPath)
 			.OnObjectChanged(this, &SActorIOActionListViewRow::OnTargetActorChanged)
@@ -416,11 +421,9 @@ TSharedRef<SWidget> SActorIOActionListViewRow::GenerateWidgetForColumn(const FNa
 			.WidgetIndex(bIsInputAction ? 1 : 0)
 			+ SWidgetSwitcher::Slot()
 			[
-				SNew(SComboBox<FName>)
-				.OptionsSource(&SelectableFunctionIds)
-				.OnGenerateWidget(this, &SActorIOActionListViewRow::OnGenerateFunctionComboBoxWidget)
-				.OnComboBoxOpening(this, &SActorIOActionListViewRow::OnFunctionComboBoxOpening)
-				.OnSelectionChanged(this, &SActorIOActionListViewRow::OnFunctionComboBoxSelectionChanged)
+				SAssignNew(FunctionComboButton, SComboButton)
+				.OnGetMenuContent(this, &SActorIOActionListViewRow::OnGetFunctionMenuContent)
+				.ButtonContent()
 				[
 					SAssignNew(FunctionText, STextBlock)
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
@@ -524,6 +527,262 @@ TSharedRef<SWidget> SActorIOActionListViewRow::GenerateWidgetForColumn(const FNa
 	return OutWidget;
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+void SActorIOActionListViewRow::OnSelectActorClicked() const
+{
+	// Get the actor from member variable
+	AActor* ActorToSelect = ActionPtr->TargetActor.Get();
+
+	if (GEditor && ActorToSelect)
+	{
+		// Select the actor in the editor
+		GEditor->SelectActor(ActorToSelect, /*bSelect=*/true, /*bNotify=*/true);
+
+		// This will also focus the viewport on the selected actor
+		GEditor->NoteActorMovement(); 
+		GEditor->MoveViewportCamerasToActor(*ActorToSelect, false);
+	}
+
+}
+
+TSharedRef<SWidget> SActorIOActionListViewRow::OnGetFunctionMenuContent()
+{
+	return SNew(SGraphActionMenu)
+			.OnGetActionList(this, &SActorIOActionListViewRow::OnGetFunctionActionList)
+			.OnActionSelected(this, &SActorIOActionListViewRow::OnGraphFunctionActionSelected)
+			.OnCreateWidgetForAction(this, &SActorIOActionListViewRow::OnCreateWidgetForAction)
+			.AutoExpandActionMenu(false);
+}
+
+TSharedRef<FGraphActionListBuilderBase> SActorIOActionListViewRow::OnGetFunctionActionList()
+{
+	// This function is called by the SGraphActionMenu to populate itself.
+	// The OutBuilder is provided by the menu.
+
+	// 1. Refresh the source of function names.
+	OnFunctionComboBoxOpening(); 
+	
+	// Make TSharedRef<FGraphActionListBuilderBase>
+	TSharedRef<FGraphActionListBuilderBase> Builder = MakeShared<FGraphActionListBuilderBase>();
+
+	// 2. Repopulate the list.
+	for (const FName& FunctionID : SelectableFunctionIds)
+	{
+		FText Category;
+		FText MenuDesc = GetFunctionDisplayName(FunctionID);
+		FText TooltipText;
+		
+		if (FunctionID == NAME_ClearComboBox)
+		{
+			Category = FText::GetEmpty();
+			TooltipText = LOCTEXT("ClearFunctionSelection", "Clear the current function selection.");
+		}
+		else
+		{
+			// Parse the "ComponentName::FunctionName" string
+			FString FunctionIDString = MenuDesc.ToString();
+			FString ComponentName;
+			FString FunctionName;
+
+			if (FunctionIDString.Split(TEXT("::"), &ComponentName, &FunctionName))
+			{
+				Category = FText::FromString(ComponentName);
+				MenuDesc = FText::FromString(FunctionName);
+			}
+			else
+			{
+				Category = LOCTEXT("OtherCategory", "AActor");
+			}
+
+			// Get tooltip
+			const FActorIOFunction* TargetFunction = ValidFunctions.GetFunction(FunctionID);
+			if (TargetFunction)
+			{
+				TooltipText = TargetFunction->TooltipText;
+			}
+			else if (ActionPtr.IsValid() && ActionPtr->TargetActor.IsPending())
+			{
+				TooltipText = LOCTEXT("ActionListViewRow.UnverifiedFunction", "Function reference cannot be verified because the target is unloaded.");
+			}
+		}
+
+		// Create our custom action struct
+		TSharedPtr<FActorIOFunctionGraphAction> NewAction = MakeShared<FActorIOFunctionGraphAction>(
+			Category,
+			MenuDesc,
+			TooltipText,
+			0 // Grouping
+		);
+
+		// NewAction->ForegroundColor = GetFunctionDisplayColor(FunctionID);
+		NewAction->Id = FunctionID; // Store our custom data
+		NewAction->bIsImportant = IsFunctionImplementedInClass(FunctionID);
+		
+		Builder->AddAction(NewAction); // Add directly to the builder
+		
+	}
+	
+	return Builder;
+}
+
+void SActorIOActionListViewRow::OnGraphFunctionActionSelected(const TArray<TSharedPtr<struct FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectType)
+{
+	if (InSelectType == ESelectInfo::OnMouseClick || InSelectType == ESelectInfo::OnKeyPress)
+	{
+		if (SelectedActions.Num() > 0 && SelectedActions[0].IsValid())
+		{
+			// Cast to our custom action type to get the FunctionId
+			TSharedPtr<FActorIOFunctionGraphAction> SelectedFunctionAction = StaticCastSharedPtr<FActorIOFunctionGraphAction>(SelectedActions[0]);
+			
+			if (SelectedFunctionAction.IsValid())
+			{
+				// Call the original selection logic using the ID we stored
+				OnFunctionComboBoxSelectionChanged(SelectedFunctionAction->Id, InSelectType);
+			}
+		}
+	}
+
+	// No matter what, close the menu
+	if (FunctionComboButton.IsValid())
+	{
+		FunctionComboButton->SetIsOpen(false);
+	}
+}
+
+TSharedRef<SWidget> SActorIOActionListViewRow::OnGetEventMenuContent()
+{
+	return SNew(SGraphActionMenu)
+		.OnGetActionList(this, &SActorIOActionListViewRow::OnGetEventActionList)
+		.OnActionSelected(this, &SActorIOActionListViewRow::OnGraphEventActionSelected)
+		.OnCreateWidgetForAction(this, &SActorIOActionListViewRow::OnCreateWidgetForAction)
+		.AutoExpandActionMenu(false);
+}
+
+TSharedRef<FGraphActionListBuilderBase> SActorIOActionListViewRow::OnGetEventActionList()
+{
+	// This function is called by the SGraphActionMenu to populate itself.
+	// The OutBuilder is provided by the menu.
+
+	// 1. Refresh the source of function names.
+	OnEventComboBoxOpening(); 
+	
+	// Make TSharedRef<FGraphActionListBuilderBase>
+	TSharedRef<FGraphActionListBuilderBase> Builder = MakeShared<FGraphActionListBuilderBase>();
+
+	// 2. Repopulate the list.
+	for (const FName& EventId : SelectableEventIds)
+	{
+		FText Category;
+		FText MenuDesc = GetEventDisplayName(EventId);
+		FText TooltipText;
+		bool bIsImportant = false;
+		
+		if (EventId == NAME_ClearComboBox)
+		{
+			Category = FText::GetEmpty();
+			TooltipText = LOCTEXT("ClearFunctionSelection", "Clear the current function selection.");
+		}
+		else
+		{
+			// Parse the "ComponentName::EventName" string
+			FString EventIdString = MenuDesc.ToString();
+			FString ComponentName;
+			FString EventName;
+
+			if (EventIdString.Split(TEXT("::"), &ComponentName, &EventName))
+			{
+				Category = FText::FromString(ComponentName);
+				MenuDesc = FText::FromString(EventName);
+			}
+			else
+			{
+				Category = LOCTEXT("OtherCategory", "AActor");
+			}
+
+			// Get tooltip
+			const FActorIOEvent* TargetFunction = ValidEvents.GetEvent(EventId);
+			if (TargetFunction)
+			{
+				TooltipText = TargetFunction->TooltipText;
+			}
+			else if (ActionPtr.IsValid() && ActionPtr->TargetActor.IsPending())
+			{
+				TooltipText = LOCTEXT("ActionListViewRow.UnverifiedFunction", "Event reference cannot be verified because the target is unloaded.");
+			}
+		}
+
+		// Create our custom action struct
+		TSharedPtr<FActorIOFunctionGraphAction> NewAction = MakeShared<FActorIOFunctionGraphAction>(
+			Category,
+			MenuDesc,
+			TooltipText,
+			0 // Grouping
+		);
+
+		// NewAction->ForegroundColor = GetFunctionDisplayColor(FunctionID);
+		NewAction->Id = EventId; // Store our custom data
+		NewAction->bIsImportant = IsEventImplementedInClass(EventId);
+		
+		Builder->AddAction(NewAction); // Add directly to the builder
+		
+	}
+	
+	return Builder;
+}
+
+TSharedRef<SWidget> SActorIOActionListViewRow::OnCreateWidgetForAction(FCreateWidgetForActionData* CreateWidgetForActionData)
+{
+	TSharedPtr<FActorIOFunctionGraphAction> ActorIOAction = StaticCastSharedPtr<FActorIOFunctionGraphAction>(CreateWidgetForActionData->Action);
+	if (ActorIOAction->bIsImportant)
+	{
+		const FSlateBrush* StarBrush = FCoreStyle::Get().GetBrush("Icons.Star");
+		return SNew(SHorizontalBox) 
+			// --- Star icon ---
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(-12.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SImage)
+				.Image(StarBrush)
+				// Set the image size
+				.DesiredSizeOverride(FVector2D(12.0f, 12.0f))
+				.ToolTipText(LOCTEXT("ImportantFunctionToolTip", "Defined in this class (not inherited).")) // TODO
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			[
+				SNew(SGraphPaletteItem, CreateWidgetForActionData)
+			];
+	}
+
+	// Return the default widget for everything else
+	return SNew(SGraphPaletteItem, CreateWidgetForActionData);
+}
+
+void SActorIOActionListViewRow::OnGraphEventActionSelected(const TArray<TSharedPtr<struct FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectType)
+{
+	if (InSelectType == ESelectInfo::OnMouseClick || InSelectType == ESelectInfo::OnKeyPress)
+	{
+		if (SelectedActions.Num() > 0 && SelectedActions[0].IsValid())
+		{
+			// Cast to our custom action type to get the FunctionId
+			TSharedPtr<FActorIOFunctionGraphAction> SelectedEventAction = StaticCastSharedPtr<FActorIOFunctionGraphAction>(SelectedActions[0]);
+			
+			if (SelectedEventAction.IsValid())
+			{
+				// Call the original selection logic using the ID we stored
+				OnEventComboBoxSelectionChanged(SelectedEventAction->Id, InSelectType);
+			}
+		}
+	}
+
+	// No matter what, close the menu
+	if (EventComboButton.IsValid())
+	{
+		EventComboButton->SetIsOpen(false);
+	}
+}
 
 TSharedPtr<SActorIOActionListView> SActorIOActionListViewRow::GetOwnerActionListView() const
 {
@@ -930,6 +1189,70 @@ FText SActorIOActionListViewRow::GetEventDisplayName(FName InEventId) const
 
 	return FText::FromName(InEventId);
 }
+
+bool SActorIOActionListViewRow::IsEventImplementedInClass(FName InEventId) const
+{
+	/* Is this event implemented in this class, or is it just inherited? */
+	const FActorIOEvent* TargetEvent = ValidEvents.GetEvent(InEventId);
+	if (!TargetEvent)
+	{
+		return false;
+	}
+	FString ComponentName, FuncName;
+	if (InEventId.ToString().Split(TEXT("::"), &ComponentName, &FuncName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	{
+		AActor* TargetActor = ActionPtr.IsValid() ? ActionPtr->GetOwnerActor() : Cast<AActor>(TargetEvent->DelegateOwner.Get());
+		if (!IsValid(TargetActor))
+		{
+			return false;
+		}
+		const UClass* OwnerClass = TargetActor->GetClass();
+		if (TargetActor->GetActorLabel() != ComponentName)
+		{
+			ComponentName.Split(TEXT("::"), nullptr, &ComponentName);
+			const FName Name(*ComponentName);
+			for (UActorComponent* Comp : TargetActor->GetComponents())
+			{
+				if (Comp && Comp->GetFName() == Name)
+				{
+					OwnerClass = Comp->GetClass();
+					break;
+				}
+			}
+		}
+            
+		// Finds property by name AND ensures it is a multicast delegate
+		if (const auto* Prop = FindFProperty<FMulticastDelegateProperty>(OwnerClass, *FuncName))
+		{
+			// Returns true only if the property was declared in the Owner's specific class
+			return Prop->GetOwner<UClass>() == OwnerClass;
+		}
+	}
+	return false;
+}
+
+bool SActorIOActionListViewRow::IsFunctionImplementedInClass(FName InFunctionId) const
+{
+	/* Is this event implemented in this class, or is it just inherited? */
+	const FActorIOFunction* TargetFunction = ValidFunctions.GetFunction(InFunctionId);
+	if (TargetFunction && TargetFunction->FunctionPtr.IsValid() && TargetFunction->OwnerClassPtr.IsValid())
+	{
+		const UFunction* Func = TargetFunction->FunctionPtr.Get();
+		const UClass* OwnerClass = TargetFunction->OwnerClassPtr.Get();
+		if (UActorIOEditorTools::IsEngineClass(OwnerClass) && (
+			OwnerClass->IsChildOf(UPrimitiveComponent::StaticClass()) ||
+			OwnerClass->IsChildOf(AStaticMeshActor::StaticClass())))
+		{
+			return false;
+		}
+		if (OwnerClass->FindFunctionByName(Func->GetFName(), EIncludeSuperFlag::ExcludeSuper))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 
 FSlateColor SActorIOActionListViewRow::GetEventDisplayColor(FName InEventId) const
 {
