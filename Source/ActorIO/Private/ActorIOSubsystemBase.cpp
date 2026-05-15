@@ -951,36 +951,4 @@ void UActorIOSubsystemBase::ProcessEvent_OnActorDestroyed(AActor* Actor, EEndPla
 	}
 }
 
-bool UActorIOSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const
-{
-	// Determine whether this specific subsystem should be created or not.
-	// Subsystems are registered with the engine automatically, but we only want one specific subsystem.
-
-	if (!Super::ShouldCreateSubsystem(Outer))
-	{
-		return false;
-	}
-
-	UClass* ThisClass = GetClass();
-
-	const UActorIOSettings* IOSettings = UActorIOSettings::Get();
-	if (IOSettings->ActorIOSubsystemClass != nullptr)
-	{
-		// A subsystem class is provided so only create if we are that class.
-		return ThisClass == IOSettings->ActorIOSubsystemClass;
-	}
-	else
-	{
-		// No subsystem class was provided so use the base implementation.
-		UE_LOG(LogActorIO, Error,
-		       TEXT("No Actor I/O Subsystem is specified in Actor I/O settings! Reverting to default implementation."));
-		return ThisClass == UActorIOSubsystemBase::StaticClass();
-	}
-}
-
-void UActorIOSubsystemBase::Initialize(FSubsystemCollectionBase& Collection)
-{
-	Super::Initialize(Collection);
-}
-
 #undef LOCTEXT_NAMESPACE
